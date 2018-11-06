@@ -1,13 +1,13 @@
 % force.m file
-function [Ft,zt,ut] = force(r,h,V,x0)   
+function [Ft,zt,ut] = force_ca(angle,h,V,x0)   
     if (nargin < 4)
-        [~,~,~,sphereradius,l1,l2] = equilibrium_distance_for_radius(r,V);
+        [~,rr,sphereradius,l1,l2] = equilibrium_distance_for_angle(angle,V);
         A = 0;
         C = sphereradius;
         mu = 2/(A+C);
         m = (C^2-A^2)/2;
         n = (C^2+A^2)/2;
-        t1=-sign(l1)*acos((r^2-n)/m)/mu;
+        t1=-sign(l1)*acos((rr^2-n)/m)/mu;
         t2=sign(l2)*acos((1-n)/m)/mu;
         x0 = [A,C,t1,t2]; % start optimizing from equilibrium shape
     end    
@@ -32,9 +32,9 @@ function [Ft,zt,ut] = force(r,h,V,x0)
     Ft = -pi * (B^2-1) / (2*H);          
 
     function [c,ceq] = mycon(arg)                
-        [z,~,r1,r2,Vcurrent] = findshape(arg);   
+        [z,~,~,r2,Vcurrent,anglea] = findshape(arg);   
         %c = [arg(1)-arg(2);-arg(1)-arg(2)];
         c = [];
-        ceq = [V - Vcurrent;z(end)-h;r1-r;r2-1];
+        ceq = [V - Vcurrent;z(end)-h;anglea-angle;r2-1];
     end
 end
