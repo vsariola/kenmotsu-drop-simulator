@@ -14,7 +14,7 @@ for i = 1:size(T,1)
     fprintf('Got: %g. ',F);
     abs_err = abs(F-T(i,4));
     rel_err = abs((F-T(i,4))/T(i,4));    
-    if abs_err > 1e-5 || rel_err > 1e-3
+    if abs_err > 1e-6 || rel_err > 1e-4
         fprintf('FAIL. Absolute error: %g, relative error: %g.\n',abs_err,rel_err);
         warn = 1;
     else

@@ -191,14 +191,17 @@ classdef drop < handle
     
     methods (Access = private)
         function obj_optimized = optimize_(obj,constraints)
-            foptions = optimset('TolFun',1e-6,'TolX',1e-8,'Display','off','MaxIter',1000,'Algorithm','sqp');   
+            foptions = optimset('TolFun',obj.tol,'TolX',obj.tol,'Display','off','MaxIter',1000);   
             lb = [-Inf,0,-Inf,-Inf];    
-            [params_opt,~,exitflag] = fmincon(@(x)0,obj.params,[-1 -1 0 0;1 -1 0 0;0 0 1 -1],[0;0;0],[],[],lb,[],@mycon,foptions);
+            [params_opt,~,exitflag] = fmincon(@(x)0,obj.params,[],[],[],[],lb,[],@mycon,foptions);
             
-            if (exitflag ~= 1)                    
-                warning('Did not converge, exitflag = %d',exitflag);                
-            end 
             obj_optimized = drop(params_opt);
+           
+            if (exitflag ~= 1)                    
+                warning('Did not converge, exitflag = %d',exitflag);
+                disp(constraints);
+                constraints(obj_optimized)
+            end 
             
             function [c,ceq] = mycon(arg)                
                 c = [];
@@ -248,7 +251,7 @@ classdef drop < handle
         function calcvolume_(obj)
             if isempty(obj.volume_cache)
                 area = @(s) pi*obj.r_(s).^2.*obj.dz_(s);
-                obj.volume_cache = integral(area,obj.s1,obj.s2);
+                obj.volume_cache = integral(area,obj.s1,obj.s2,'AbsTol',obj.tol);
             end
         end       
     end
