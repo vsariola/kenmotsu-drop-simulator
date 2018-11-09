@@ -115,15 +115,15 @@ classdef drop < handle
         
         function obj = create_ar(height,volume,angle1,radius2)
         	d0 = drop.segment_ar(volume,angle1,radius2);
-            constraint = @(d) [height volume angle1 radius2] -...
-                [d.height d.volume d.angle1 d.radius2];
+            constraint = @(d) [height volume angle1/100 radius2] -...
+                [d.height d.volume d.angle1/100 d.radius2];
             obj = d0.optimize_(constraint);
         end
         
         function obj = create_aa(height,volume,angle1,angle2)
         	d0 = drop.segment_aa(volume,angle1,angle2);
-            constraint = @(d) [height volume angle1 angle2] -...
-                [d.height d.volume d.angle1 d.angle2];
+            constraint = @(d) [height volume angle1/100 angle2/100] -...
+                [d.height d.volume d.angle1/100 d.angle2/100];
             obj = d0.optimize_(constraint);
         end
         
@@ -191,9 +191,9 @@ classdef drop < handle
     
     methods (Access = private)
         function obj_optimized = optimize_(obj,constraints)
-            foptions = optimset('TolFun',1e-6,'TolX',1e-8,'Display','off','MaxIter',1000);   
+            foptions = optimset('TolFun',1e-6,'TolX',1e-8,'Display','off','MaxIter',1000,'Algorithm','sqp');   
             lb = [-Inf,0,-Inf,-Inf];    
-            [params_opt,~,exitflag] = fmincon(@(x)0,obj.params,[0 0 1 -1],0,[],[],lb,[],@mycon,foptions);
+            [params_opt,~,exitflag] = fmincon(@(x)0,obj.params,[-1 -1 0 0;1 -1 0 0;0 0 1 -1],[0;0;0],[],[],lb,[],@mycon,foptions);
             
             if (exitflag ~= 1)                    
                 warning('Did not converge, exitflag = %d',exitflag);                
@@ -207,19 +207,22 @@ classdef drop < handle
         end
         
         function r = r_(obj,s)
-            mu = 2/(obj.A+obj.C);
-            r = sqrt((obj.C^2-obj.A^2)*cos(mu*s/2).^2+obj.A^2);    
+            H = 1/(obj.A+obj.C);
+            B = (obj.C-obj.A)*H;
+            r = sqrt(1 + B^2 + 2*B*cos(2*H*s)) / (2*H);    
         end
          
         function dr = dr_(obj,s)
             mu = 2/(obj.A+obj.C);
             m = (obj.C^2-obj.A^2)/2;
             n = (obj.C^2+obj.A^2)/2;  
-            dr = 0.5 * 1/sqrt(m*cos(mu*s)+n) * m * -sin(mu*s) * mu;
+            dr = 0.5 * 1./sqrt(m*cos(mu*s)+n) * m .* -sin(mu*s) * mu;
         end   
         
         function dz = dz_(obj,s)
-            dz = 1/(obj.A+obj.C)*(obj.r_(s)+obj.A./cos(s/(obj.A+obj.C)));
+            H = 1/(obj.A+obj.C);
+            B = (obj.C-obj.A)*H;
+            dz = (1+B*2*cos(H*s).^2-B) ./ sqrt((B-1)^2 + 4*B*cos(H*s).^2);
         end              
         
         function drdz = drdz_(obj,s)
