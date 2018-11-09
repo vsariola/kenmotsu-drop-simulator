@@ -40,6 +40,10 @@ classdef drop < handle
             obj.tol = tol;
         end
         
+        function params = params(obj)
+            params = [obj.A obj.C obj.s1 obj.s2];
+        end
+        
         function h = height(obj)
             obj.calczs_();
             h = obj.z_cache(end);
@@ -69,13 +73,11 @@ classdef drop < handle
         end
         
         function a1 = angle1(obj)
-            drdz_at_s1 = obj.drdz_(obj.s1);
-            a1 = 180-sign(drdz_at_s1)*asind(1/sqrt(1+drdz_at_s1^2));
+            a1 = atan2d(obj.dr_(obj.s1),obj.dz_(obj.s1))+90;
         end
         
         function a2 = angle2(obj)
-            drdz_at_s2 = obj.drdz_(obj.s2);
-            a2 = 180+sign(drdz_at_s2)*asind(1/sqrt(1+drdz_at_s2^2));    
+            a2 = -atan2d(obj.dr_(obj.s2),obj.dz_(obj.s2))+90;  
         end
         
         function V = volume(obj)
@@ -89,17 +91,49 @@ classdef drop < handle
             F = -pi * (B^2-1) / (2*H); 
         end
         
-        function show(obj)            
-            plot(obj.r,obj.z,'b-',-obj.r,obj.z,'b-'); 
+        function show(obj)       
+            obj.calcr_();
+            obj.calczs_();
+            rr = [obj.r_cache fliplr(-obj.r_cache) obj.r_cache(1)];
+            zz = [obj.z_cache fliplr(obj.z_cache) obj.z_cache(1)];
+            plot(rr,zz,'b-'); 
             axis equal;
+        end
+        
+        function obj_flipped = flip(obj)
+            obj_flipped = drop(obj.A,obj.C,-obj.s2,-obj.s1);
         end
     end
     
 	methods(Static)
-        function obj = spherical_rr(volume,radius1,radius2)             
+        function obj = create_rr(height,volume,radius1,radius2)
+        	d0 = drop.segment_rr(volume,radius1,radius2);
+            constraint = @(d) [height volume radius1 radius2] -...
+                [d.height d.volume d.radius1 d.radius2];
+            obj = d0.optimize_(constraint);
+        end
+        
+        function obj = create_ar(height,volume,angle1,radius2)
+        	d0 = drop.segment_ar(volume,angle1,radius2);
+            constraint = @(d) [height volume angle1 radius2] -...
+                [d.height d.volume d.angle1 d.radius2];
+            obj = d0.optimize_(constraint);
+        end
+        
+        function obj = create_aa(height,volume,angle1,angle2)
+        	d0 = drop.segment_aa(volume,angle1,angle2);
+            constraint = @(d) [height volume angle1 angle2] -...
+                [d.height d.volume d.angle1 d.angle2];
+            obj = d0.optimize_(constraint);
+        end
+        
+        function obj = create_ra(height,volume,radius1,angle2)
+            obj = drop.create_ar(height,volume,angle2,radius1).flip;
+        end
+        
+        function obj = segment_rr(volume,radius1,radius2)             
             if radius1 > radius2
-                d = drop.spherical_rr(volume,radius2,radius1);
-                obj = drop(d.A,d.C,-d.s2,-d.s1);
+                obj = drop.segment_rr(volume,radius2,radius1).flip;               
                 return;
             end
             V = @(h) pi*h/6.*(3*radius1.^2+3*radius2.^2+h.^2);
@@ -112,31 +146,80 @@ classdef drop < handle
             obj = drop([0 R s1 s2]);
         end
         
-        function obj = spherical_ar(volume,angle1,radius2)
-            obj = []; % TBW
+        function obj = segment_ar(volume,angle1,radius2)
+            % Volume of a segment segment
+            V = @(h,r1) pi*h/6.*(3*r1.^2+3*radius2.^2+h.^2);    
+
+            % x is distance from the sphere center to the plane 2
+            l1 = @(l2) -sqrt(l2^2+radius2^2)*cosd(angle1);                        
+            l2 = fzero(@(l2) V(l2+l1(l2),sqrt(l2^2+radius2^2)*sind(angle1))-volume,1);       
+            l1 = l1(l2);
+            R = sqrt(radius2^2+l2^2);  
+            radius1 = R*sind(angle1); 
+            s1 = -sign(l1)*acos(2*radius1^2/R^2-1)*R/2;
+            s2 = sign(l2)*acos(2*radius2^2/R^2-1)*R/2;
+            obj = drop([0 R s1 s2]);
         end
         
-        function obj = spherical_aa(volume,angle1,angle2)
-            obj = []; % TBW
+        function obj = segment_aa(volume,angle1,angle2)
+            if angle1+angle2 < 180
+                error('The sum of contact angles should be larger than 180 (was: %g)',angle1+angle2);
+            end
+            V = @(l1,l2) pi*(l1+l2)/6.*(3*(l1*tand(angle1)).^2+3*(l2*tand(angle2)).^2+(l1+l2).^2);
+            l2 = fzero(@(l2) V(l2*cosd(angle1)/cosd(angle2),l2)-volume,1);
+            l1 = l2*cosd(angle1)/cosd(angle2);
+            R = -l2/cosd(angle2);  
+            radius1 = -l1*tand(angle1); 
+            radius2 = -l2*tand(angle2);
+            s1 = -sign(l1)*acos(2*radius1^2/R^2-1)*R/2;
+            s2 = sign(l2)*acos(2*radius2^2/R^2-1)*R/2;
+            obj = drop([0 R s1 s2]);
         end
             
-        function obj = spherical_ra(volume,radius1,angle2)
-            d = drop.spherical_ar(volume,angle2,radius1);
-            obj = drop(d.A,d.C,-d.s2,-d.s1);
+        function obj = segment_ra(volume,radius1,angle2)
+            obj = drop.segment_ar(volume,angle2,radius1).flip;
         end
-            
+        
+        function obj = cap_r(volume,radius1)
+            obj = drop.segment_rr(volume,radius1,0);
+        end
+        
+        function obj = cap_a(volume,angle1)
+            obj = drop.segment_ar(volume,angle1,0);
+        end            
     end
     
     methods (Access = private)
+        function obj_optimized = optimize_(obj,constraints)
+            foptions = optimset('TolFun',1e-6,'TolX',1e-8,'Display','off','MaxIter',1000);   
+            lb = [-Inf,0,-Inf,-Inf];    
+            [params_opt,~,exitflag] = fmincon(@(x)0,obj.params,[0 0 1 -1],0,[],[],lb,[],@mycon,foptions);
+            
+            if (exitflag ~= 1)                    
+                warning('Did not converge, exitflag = %d',exitflag);                
+            end 
+            obj_optimized = drop(params_opt);
+            
+            function [c,ceq] = mycon(arg)                
+                c = [];
+                ceq = constraints(drop(arg));
+            end
+        end
+        
         function r = r_(obj,s)
             mu = 2/(obj.A+obj.C);
-            m = (obj.C^2-obj.A^2)/2;
-            n = (obj.C^2+obj.A^2)/2;    
-            r = sqrt(m*cos(mu*s)+n);    
+            r = sqrt((obj.C^2-obj.A^2)*cos(mu*s/2).^2+obj.A^2);    
         end
          
+        function dr = dr_(obj,s)
+            mu = 2/(obj.A+obj.C);
+            m = (obj.C^2-obj.A^2)/2;
+            n = (obj.C^2+obj.A^2)/2;  
+            dr = 0.5 * 1/sqrt(m*cos(mu*s)+n) * m * -sin(mu*s) * mu;
+        end   
+        
         function dz = dz_(obj,s)
-            dz = 1/(obj.A+obj.C)*(obj.r_(s)+obj.A*obj.C ./(obj.r_(s)));
+            dz = 1/(obj.A+obj.C)*(obj.r_(s)+obj.A./cos(s/(obj.A+obj.C)));
         end              
         
         function drdz = drdz_(obj,s)
@@ -164,6 +247,6 @@ classdef drop < handle
                 area = @(s) pi*obj.r_(s).^2.*obj.dz_(s);
                 obj.volume_cache = integral(area,obj.s1,obj.s2);
             end
-        end
+        end       
     end
 end
