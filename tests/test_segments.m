@@ -18,4 +18,13 @@ params = linspace(2,179,10)';
 test('Segment aa angle',fun,[params 181-params params]);
 test('Segment aa angle',fun2,[params 181-params 181-params]);
 
+
+params = rand(20,3);
+fun_V = @(x) drop.segment_rr(x(1),x(2),x(3)).volume;
+fun_r1 = @(x) drop.segment_rr(x(1),x(2),x(3)).radius1;
+fun_r2 = @(x) drop.segment_rr(x(1),x(2),x(3)).radius2;
+test('Segment rr volume',fun_V,[params params(:,1)]);
+test('Segment rr radius1',fun_r1,[params params(:,2)]);
+test('Segment rr radius2',fun_r2,[params params(:,3)]);
+
 end_test

@@ -131,19 +131,21 @@ classdef drop < handle
             obj = drop.create_ar(height,volume,angle2,radius1).flip;
         end
         
-        function obj = segment_rr(volume,radius1,radius2)             
-            if radius1 > radius2
-                obj = drop.segment_rr(volume,radius2,radius1).flip;               
-                return;
-            end
-            V = @(h) pi*h/6.*(3*radius1.^2+3*radius2.^2+h.^2);
-            l1 = @(x) sqrt(radius2.^2+x.^2-radius1.^2);        
-            l2 = fzero(@(x) V(x+l1(x))-volume,1);        
-            l1 = l1(l2);                                             
-            R = sqrt(radius1^2+l1^2);            
-            s1 = -sign(l1)*acos(2*radius1^2/R^2-1)*R/2;
-            s2 = sign(l2)*acos(2*radius2^2/R^2-1)*R/2;
-            obj = drop([0 R s1 s2]);
+        function obj = segment_rr(volume,radius1,radius2)                  
+            % Volume of a segment is pi*h/6*(3*r1.^2+3*r2^2+h^2)
+            % Solve h using https://en.wikipedia.org/wiki/Cubic_function
+            % noting that b = 0
+            a = pi/6;
+            c = pi*(radius1^2+radius2^2)/2;
+            d = -volume;
+            delta0 = -3*a*c;
+            delta1 = 27*a^2*d;
+            C = nthroot((delta1+sqrt(delta1^2-4*delta0^3))/2,3);
+            h = -1/(3*a)*(C+delta0/C);
+            l1 = (radius2^2-radius1^2+h^2)/(2*h);
+            l2 = h - l1;            
+            R = sqrt(radius1^2+l1^2);                        
+            obj = drop.segment_Rll_(R,l1,l2);
         end
         
         function obj = segment_ar(volume,angle1,radius2)
@@ -155,10 +157,7 @@ classdef drop < handle
             l2 = fzero(@(l2) V(l2+l1(l2),sqrt(l2^2+radius2^2)*sind(angle1))-volume,1);       
             l1 = l1(l2);
             R = sqrt(radius2^2+l2^2);  
-            radius1 = R*sind(angle1); 
-            s1 = -sign(l1)*acos(2*radius1^2/R^2-1)*R/2;
-            s2 = sign(l2)*acos(2*radius2^2/R^2-1)*R/2;
-            obj = drop([0 R s1 s2]);
+            obj = drop.segment_Rll_(R,l1,l2);
         end
         
         function obj = segment_aa(volume,angle1,angle2)
@@ -169,11 +168,7 @@ classdef drop < handle
             l2 = fzero(@(l2) V(l2*cosd(angle1)/cosd(angle2),l2)-volume,1);
             l1 = l2*cosd(angle1)/cosd(angle2);
             R = -l2/cosd(angle2);  
-            radius1 = -l1*tand(angle1); 
-            radius2 = -l2*tand(angle2);
-            s1 = -sign(l1)*acos(2*radius1^2/R^2-1)*R/2;
-            s2 = sign(l2)*acos(2*radius2^2/R^2-1)*R/2;
-            obj = drop([0 R s1 s2]);
+            obj = drop.segment_Rll_(R,l1,l2); 
         end
             
         function obj = segment_ra(volume,radius1,angle2)
@@ -254,5 +249,11 @@ classdef drop < handle
                 obj.volume_cache = integral(area,obj.s1,obj.s2,'AbsTol',obj.tol);
             end
         end       
+    end
+    
+    methods (Access = private,Static)
+        function obj = segment_Rll_(R,l1,l2)
+            obj = drop([0 R -asin(l1/R)*R asin(l2/R)*R]);
+        end 
     end
 end
