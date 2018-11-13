@@ -2,7 +2,7 @@ function test_forces
 
 start_test
 
-fun = @(x) drop.create_rr(x(1),x(2),x(3),1).force;
+fun = @(x) drop.create(x(1),x(2),'radius',x(3),'radius',1).force;
 cases = ...
     [0.5737 1 1e-3 0.000016604854900;
      0.5737 1 1e-2 0.000095451982678;
@@ -11,7 +11,7 @@ cases = ...
      1.6596 5 1e-2 0.000112224642805];
 test('Snap-in force for a known radius',fun,cases);
 
-fun = @(x) drop.create_ar(x(1),x(2),x(3),1).force;
+fun = @(x) drop.create(x(1),x(2),'angle',x(3),'radius',1).force;
 cases = ...
     [0.5737 1 170 0.045501318772901;
      0.5737 1 140 0.969456779969718;

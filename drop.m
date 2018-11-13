@@ -104,107 +104,41 @@ classdef drop < handle
     end
     
 	methods(Static)
-        function obj = create_rr(height,volume,radius1,radius2)
-        	d0 = drop.segment_rr(volume,radius1,radius2);
-            constraint = @(d) [height volume radius1 radius2] -...
-                [d.height d.volume d.radius1 d.radius2];
+        function obj = create(height,volume,type1,value1,type2,value2)
+        	d0 = drop.segment(volume,type1,value1,type2,value2);
+            constraint = @(d) [height volume value1 value2] -...
+                [d.height d.volume d.([type1 '1']) d.([type2 '2'])];
             obj = d0.optimize_(constraint);
         end
-        
-        function obj = create_ar(height,volume,angle1,radius2)
-        	d0 = drop.segment_ar(volume,angle1,radius2);
-            constraint = @(d) [height volume angle1/100 radius2] -...
-                [d.height d.volume d.angle1/100 d.radius2];
-            obj = d0.optimize_(constraint);
-        end
-        
-        function obj = create_aa(height,volume,angle1,angle2)
-        	d0 = drop.segment_aa(volume,angle1,angle2);
-            constraint = @(d) [height volume angle1/100 angle2/100] -...
-                [d.height d.volume d.angle1/100 d.angle2/100];
-            obj = d0.optimize_(constraint);
-        end
-        
-        function obj = create_ra(height,volume,radius1,angle2)
-            obj = drop.create_ar(height,volume,angle2,radius1).flip;
-        end
-        
-        function obj = maxforce_rr(volume,radius1,radius2)
-        	d0 = drop.segment_rr(volume,radius1,radius2);
-            constraint = @(d) [volume radius1 radius2] -...
-                [d.volume d.radius1 d.radius2];
+     
+        function obj = maxforce(volume,type1,value1,type2,value2)
+        	d0 = drop.segment(volume,type1,value1,type2,value2);
+            constraint = @(d) [volume value1 value2] -...
+                [d.volume d.([type1 '1']) d.([type2 '2'])];
             obj = d0.optimize_(constraint,@(d)-drop(d).force);
-        end
-        
-        function obj = maxforce_ar(volume,angle1,radius2)
-        	d0 = drop.segment_ar(volume,angle1,radius2);
-            constraint = @(d) [volume angle1 radius2] -...
-                [d.volume d.angle1 d.radius2];
-            obj = d0.optimize_(constraint,@(d)-drop(d).force);
-        end
-        
-        function obj = maxforce_aa(volume,angle1,angle2)
-        	d0 = drop.segment_ar(volume,angle1,angle2);
-            constraint = @(d) [volume angle1 angle2] -...
-                [d.volume d.angle1 d.angle2];
-            obj = d0.optimize_(constraint,@(d)-drop(d).force);
-        end
-        
-        function obj = maxforce_ra(volume,radius1,angle2)        	
-            obj = drop.maxforce_ar(volume,angle2,radius1).flip();
-        end
-        
-        function obj = segment_rr(volume,radius1,radius2)                  
-            % Volume of a segment is pi*h/6*(3*r1.^2+3*r2^2+h^2)
-            % Solve h using https://en.wikipedia.org/wiki/Cubic_function
-            % noting that b = 0
-            a = pi/6;
-            c = pi*(radius1^2+radius2^2)/2;
-            d = -volume;
-            delta0 = -3*a*c;
-            delta1 = 27*a^2*d;
-            C = nthroot((delta1+sqrt(delta1^2-4*delta0^3))/2,3);
-            h = -1/(3*a)*(C+delta0/C);
-            l1 = (radius2^2-radius1^2+h^2)/(2*h);
-            l2 = h - l1;            
-            R = sqrt(radius1^2+l1^2);                        
-            obj = drop.segment_Rll_(R,l1,l2);
-        end
-        
-        function obj = segment_ar(volume,angle1,radius2)
-            % Volume of a segment segment
-            V = @(h,r1) pi*h/6.*(3*r1.^2+3*radius2.^2+h.^2);    
-
-            % x is distance from the sphere center to the plane 2
-            l1 = @(l2) -sqrt(l2^2+radius2^2)*cosd(angle1);                        
-            l2 = fzero(@(l2) V(l2+l1(l2),sqrt(l2^2+radius2^2)*sind(angle1))-volume,1);       
-            l1 = l1(l2);
-            R = sqrt(radius2^2+l2^2);  
-            obj = drop.segment_Rll_(R,l1,l2);
-        end
-        
-        function obj = segment_aa(volume,angle1,angle2)
-            if angle1+angle2 < 180
-                error('The sum of contact angles should be larger than 180 (was: %g)',angle1+angle2);
-            end
-            V = @(l1,l2) pi*(l1+l2)/6.*(3*(l1*tand(angle1)).^2+3*(l2*tand(angle2)).^2+(l1+l2).^2);
-            l2 = fzero(@(l2) V(l2*cosd(angle1)/cosd(angle2),l2)-volume,1);
-            l1 = l2*cosd(angle1)/cosd(angle2);
-            R = -l2/cosd(angle2);  
-            obj = drop.segment_Rll_(R,l1,l2); 
         end
             
-        function obj = segment_ra(volume,radius1,angle2)
-            obj = drop.segment_ar(volume,angle2,radius1).flip;
+        function obj = segment(volume,type1,value1,type2,value2)
+			validatestring(type1,{'angle','radius'});
+			validatestring(type2,{'angle','radius'});
+			if strcmp(type1,'angle')
+				if strcmp(type2,'angle')
+					obj = drop.segment_aa_(volume,value1,value2);
+				else
+					obj = drop.segment_ar_(volume,value1,value2);
+				end
+			else
+				if strcmp(type2,'angle')
+					obj = drop.segment_ar_(volume,value2,value1).flip;
+				else
+					obj = drop.segment_rr_(volume,value1,value2);
+				end
+			end
         end
         
-        function obj = cap_r(volume,radius1)
-            obj = drop.segment_rr(volume,radius1,0);
+        function obj = cap(volume,type1,value1)
+            obj = drop.segment(volume,type1,value1,'radius',0);
         end
-        
-        function obj = cap_a(volume,angle1)
-            obj = drop.segment_ar(volume,angle1,0);
-        end            
     end
     
     methods (Access = private)
@@ -271,6 +205,46 @@ classdef drop < handle
     end
     
     methods (Access = private,Static)
+		function obj = segment_rr_(volume,radius1,radius2)                  
+            % Volume of a segment is pi*h/6*(3*r1.^2+3*r2^2+h^2)
+            % Solve h using https://en.wikipedia.org/wiki/Cubic_function
+            % noting that b = 0
+            a = pi/6;
+            c = pi*(radius1^2+radius2^2)/2;
+            d = -volume;
+            delta0 = -3*a*c;
+            delta1 = 27*a^2*d;
+            C = nthroot((delta1+sqrt(delta1^2-4*delta0^3))/2,3);
+            h = -1/(3*a)*(C+delta0/C);
+            l1 = (radius2^2-radius1^2+h^2)/(2*h);
+            l2 = h - l1;            
+            R = sqrt(radius1^2+l1^2);                        
+            obj = drop.segment_Rll_(R,l1,l2);
+        end
+        
+        function obj = segment_ar_(volume,angle1,radius2)
+            % Volume of a segment segment
+            V = @(h,r1) pi*h/6.*(3*r1.^2+3*radius2.^2+h.^2);    
+
+            % x is distance from the sphere center to the plane 2
+            l1 = @(l2) -sqrt(l2^2+radius2^2)*cosd(angle1);                        
+            l2 = fzero(@(l2) V(l2+l1(l2),sqrt(l2^2+radius2^2)*sind(angle1))-volume,1);       
+            l1 = l1(l2);
+            R = sqrt(radius2^2+l2^2);  
+            obj = drop.segment_Rll_(R,l1,l2);
+        end
+        
+        function obj = segment_aa_(volume,angle1,angle2)
+            if angle1+angle2 < 180
+                error('The sum of contact angles should be larger than 180 (was: %g)',angle1+angle2);
+            end
+            V = @(l1,l2) pi*(l1+l2)/6.*(3*(l1*tand(angle1)).^2+3*(l2*tand(angle2)).^2+(l1+l2).^2);
+            l2 = fzero(@(l2) V(l2*cosd(angle1)/cosd(angle2),l2)-volume,1);
+            l1 = l2*cosd(angle1)/cosd(angle2);
+            R = -l2/cosd(angle2);  
+            obj = drop.segment_Rll_(R,l1,l2); 
+        end
+	
         function obj = segment_Rll_(R,l1,l2)
             obj = drop([1 1/R -asin(l1/R)*R asin(l2/R)*R]);
         end 
