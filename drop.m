@@ -131,6 +131,31 @@ classdef drop < handle
             obj = drop.create_ar(height,volume,angle2,radius1).flip;
         end
         
+        function obj = maxforce_rr(volume,radius1,radius2)
+        	d0 = drop.segment_rr(volume,radius1,radius2);
+            constraint = @(d) [volume radius1 radius2] -...
+                [d.volume d.radius1 d.radius2];
+            obj = d0.optimize_(constraint,@(d)-drop(d).force);
+        end
+        
+        function obj = maxforce_ar(volume,angle1,radius2)
+        	d0 = drop.segment_ar(volume,angle1,radius2);
+            constraint = @(d) [volume angle1 radius2] -...
+                [d.volume d.angle1 d.radius2];
+            obj = d0.optimize_(constraint,@(d)-drop(d).force);
+        end
+        
+        function obj = maxforce_aa(volume,angle1,angle2)
+        	d0 = drop.segment_ar(volume,angle1,angle2);
+            constraint = @(d) [volume angle1 angle2] -...
+                [d.volume d.angle1 d.angle2];
+            obj = d0.optimize_(constraint,@(d)-drop(d).force);
+        end
+        
+        function obj = maxforce_ra(volume,radius1,angle2)        	
+            obj = drop.maxforce_ar(volume,angle2,radius1).flip();
+        end
+        
         function obj = segment_rr(volume,radius1,radius2)                  
             % Volume of a segment is pi*h/6*(3*r1.^2+3*r2^2+h^2)
             % Solve h using https://en.wikipedia.org/wiki/Cubic_function
@@ -185,14 +210,18 @@ classdef drop < handle
     end
     
     methods (Access = private)
-        function obj_optimized = optimize_(obj,constraints)
+        function obj_optimized = optimize_(obj,constraints,fun)
+            if (nargin < 3)
+                fun = @(x)0;
+            end
+            
             foptions = optimset('TolFun',obj.tol,'TolX',obj.tol,'Display','off','MaxIter',1000);   
             lb = [-Inf,0,-Inf,-Inf];    
-            [params_opt,~,exitflag] = fmincon(@(x)0,obj.params,[],[],[],[],lb,[],@mycon,foptions);
+            [params_opt,~,exitflag] = fmincon(fun,obj.params,[],[],[],[],lb,[],@mycon,foptions);
             
             obj_optimized = drop(params_opt);
            
-            if (exitflag ~= 1)                    
+            if (exitflag < 1)                    
                 warning('Did not converge, exitflag = %d',exitflag);
                 disp(constraints);
                 constraints(obj_optimized)
