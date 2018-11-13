@@ -1,8 +1,8 @@
 classdef drop < handle
     
     properties (SetAccess = immutable)
-        A
-        C
+        B
+        H
         s1    
         s2
         tol
@@ -16,32 +16,32 @@ classdef drop < handle
     end
     
     methods
-        function obj = drop(A,C,s1,s2,tol)
+        function obj = drop(B,H,s1,s2,tol)
             if nargin < 5
                 tol = 1e-12;
             end
             if nargin == 1
-                if length(A) >= 5
-                    tol = A(5);
+                if length(B) >= 5
+                    tol = B(5);
                 end
-                if length(A) >= 4
-                    s2 = A(4);
-                    s1 = A(3);
-                    C = A(2);
-                    A = A(1);
+                if length(B) >= 4
+                    s2 = B(4);
+                    s1 = B(3);
+                    H = B(2);
+                    B = B(1);
                 else                
                     error('At least four params expected');
                 end
             end            
-            obj.A = A;
-            obj.C = C;
+            obj.B = B;
+            obj.H = H;
             obj.s1 = s1;
             obj.s2 = s2;
             obj.tol = tol;
         end
         
         function params = params(obj)
-            params = [obj.A obj.C obj.s1 obj.s2];
+            params = [obj.B obj.H obj.s1 obj.s2];
         end
         
         function h = height(obj)
@@ -82,13 +82,11 @@ classdef drop < handle
         
         function V = volume(obj)
             obj.calcvolume_();
-            V = obj.volume_cache();        
+            V = obj.volume_cache;        
         end
         
         function F = force(obj)
-            H = 1/(obj.A+obj.C);
-            B = (obj.C-obj.A)*H;
-            F = -pi * (B^2-1) / (2*H); 
+            F = -pi * (obj.B^2-1) / (2*obj.H); 
         end
         
         function show(obj)       
@@ -101,7 +99,7 @@ classdef drop < handle
         end
         
         function obj_flipped = flip(obj)
-            obj_flipped = drop(obj.A,obj.C,-obj.s2,-obj.s1);
+            obj_flipped = drop(obj.B,obj.H,-obj.s2,-obj.s1);
         end
     end
     
@@ -234,27 +232,19 @@ classdef drop < handle
         end
         
         function r = r_(obj,s)
-            H = 1/(obj.A+obj.C);
-            B = (obj.C-obj.A)*H;
-            r = sqrt(1 + B^2 + 2*B*cos(2*H*s)) / (2*H);    
+            r = sqrt(1 + obj.B^2 + 2*obj.B*cos(2*obj.H*s)) / (2*obj.H);    
         end
          
         function dr = dr_(obj,s)
-            mu = 2/(obj.A+obj.C);
-            m = (obj.C^2-obj.A^2)/2;
-            n = (obj.C^2+obj.A^2)/2;  
-            dr = 0.5 * 1./sqrt(m*cos(mu*s)+n) * m .* -sin(mu*s) * mu;
+			dr = -(obj.B * sin(2*obj.H*s))./sqrt(obj.B^2 + 2*obj.B*cos(2*obj.H*s) + 1);
         end   
         
         function dz = dz_(obj,s)
-            H = 1/(obj.A+obj.C);
-            B = (obj.C-obj.A)*H;
-            dz = (1+B*2*cos(H*s).^2-B) ./ sqrt((B-1)^2 + 4*B*cos(H*s).^2);
+            dz = (1+obj.B*2*cos(obj.H*s).^2-obj.B) ./ sqrt((obj.B-1)^2 + 4*obj.B*cos(obj.H*s).^2);
         end              
         
         function drdz = drdz_(obj,s)
-           drdz = -sin(2*s/(obj.A+obj.C))*(obj.A-obj.C) / ...
-               ((obj.A-obj.C)*cos(2*s/(obj.A+obj.C))-obj.A-obj.C);         
+           drdz = -obj.B*sin(2*obj.H*s) / (obj.B*cos(2*obj.H*s)+1);
         end
         
         function calczs_(obj)  
@@ -282,7 +272,7 @@ classdef drop < handle
     
     methods (Access = private,Static)
         function obj = segment_Rll_(R,l1,l2)
-            obj = drop([0 R -asin(l1/R)*R asin(l2/R)*R]);
+            obj = drop([1 1/R -asin(l1/R)*R asin(l2/R)*R]);
         end 
     end
 end
