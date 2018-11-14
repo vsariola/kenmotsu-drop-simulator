@@ -115,7 +115,7 @@ classdef drop < handle
         	d0 = drop.segment(volume,type1,value1,type2,value2);
             constraint = @(d) [volume value1 value2] -...
                 [d.volume d.([type1 '1']) d.([type2 '2'])];
-            obj = d0.optimize_(constraint,@(d)-drop(d).force);
+            obj = d0.optimize_(constraint,@(d)-d.force);
         end
             
         function obj = segment(volume,type1,value1,type2,value2)
@@ -149,7 +149,10 @@ classdef drop < handle
             
             foptions = optimset('TolFun',obj.tol,'TolX',obj.tol,'Display','off','MaxIter',1000);   
             lb = [-Inf,0,-Inf,-Inf];    
-            [params_opt,~,exitflag] = fmincon(fun,obj.params,[],[],[],[],lb,[],@mycon,foptions);
+			
+			d_cache = [];
+			d_cache_arg = [];
+            [params_opt,~,exitflag] = fmincon(@myfun,obj.params,[],[],[],[],lb,[],@mycon,foptions);
             
             obj_optimized = drop(params_opt);
            
@@ -158,10 +161,25 @@ classdef drop < handle
                 disp(constraints);
                 constraints(obj_optimized)
             end 
+			
+			% Small optimization: share the computed drop with the constraint function
+			% if it was already computed in myfun
+			function check_cache(arg)
+				if isempty(d_cache_arg) || any(d_cache_arg ~= arg)
+					d_cache_arg = arg;
+					d_cache = drop(arg);
+				end	
+			end
+			
+			function value = myfun(arg)
+				check_cache(arg);
+				value = fun(d_cache);
+			end
             
-            function [c,ceq] = mycon(arg)                
+            function [c,ceq] = mycon(arg)     
+				check_cache(arg);
                 c = [];
-                ceq = constraints(drop(arg));
+                ceq = constraints(d_cache);
             end
         end
         
