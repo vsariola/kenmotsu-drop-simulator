@@ -101,25 +101,34 @@ classdef drop < handle
         function obj_flipped = flip(obj)
             obj_flipped = drop(obj.B,obj.H,-obj.s2,-obj.s1);
         end
+		
+		function d = solve(d0,varargin)
+			d = d0.optimize_(@(x)x.constraint_(varargin{:}));
+        end
+		
+		function d = minimize(d0,fieldname,varargin)
+			d = d0.optimize_(@(x)x.constraint_(varargin{:}),@(x)x.(fieldname));
+		end
+		
+		function d = maximize(d0,fieldname,varargin)
+			d = d0.optimize_(@(x)x.constraint_(varargin{:}),@(x)-x.(fieldname));
+		end
     end
     
-	methods(Static)
-        function obj = create(height,volume,type1,value1,type2,value2)
+	methods(Static)	
+        function d = segment_solve(volume,type1,value1,type2,value2,varargin)
         	d0 = drop.segment(volume,type1,value1,type2,value2);            
-            constraint = drop.constraint_hv_(height,volume,type1,value1,type2,value2);
-            obj = d0.optimize_(constraint);
+            d = d0.solve('volume',volume,[type1 '1'],value1,[type2 '2'],value2,varargin{:});
         end
     
-        function obj = maxheight(volume,type1,value1,type2,value2)
-        	d0 = drop.segment(volume,type1,value1,type2,value2);
-            constraint = drop.constraint_v_(volume,type1,value1,type2,value2);
-            obj = d0.optimize_(constraint,@(d)-d.height);
+        function d = segment_maximize(volume,type1,value1,type2,value2,fieldname,varargin)
+        	d0 = drop.segment(volume,type1,value1,type2,value2);            
+            d = d0.maximize(fieldname,'volume',volume,[type1 '1'],value1,[type2 '2'],value2,varargin{:});
         end
         
-        function obj = maxforce(volume,type1,value1,type2,value2)
-        	d0 = drop.segment(volume,type1,value1,type2,value2);
-            constraint = drop.constraint_v_(volume,type1,value1,type2,value2);
-            obj = d0.optimize_(constraint,@(d)-d.force);
+        function d = segment_minimize(volume,type1,value1,type2,value2,fieldname,varargin)
+        	d0 = drop.segment(volume,type1,value1,type2,value2);            
+            d = d0.minimize(fieldname,'volume',volume,[type1 '1'],value1,[type2 '2'],value2,varargin{:});
         end
             
         function obj = segment(volume,type1,value1,type2,value2)
@@ -228,34 +237,26 @@ classdef drop < handle
                     (2*obj.B*cos(obj.H*s).^2-obj.B+1)/(4*obj.H^2);
                 obj.volume_cache = integral(area,obj.s1,obj.s2,'AbsTol',obj.tol);
             end
-        end       
+        end     
+
+        function ceq = constraint_(drop,varargin)
+			n = length(varargin)/2;
+			ceq = zeros(1,n);
+			for i = 1:n
+				target = varargin{i*2};
+				fieldname = varargin{i*2-1};				
+				if strcmp(fieldname,'angle1') || strcmp(fieldname,'angle2')
+					ceq(i) = 0.1 * (target - drop.(fieldname));
+                elseif strcmp(fieldname,'volume')
+                    ceq(i) = nthroot(target,3) - nthroot(drop.(fieldname),3); 
+                else
+                    ceq(i) = target - drop.(fieldname);
+				end
+			end
+        end		
     end
     
     methods (Access = private,Static)
-        function c = constraint_hv_(height,volume,type1,value1,type2,value2)
-            s = [1 1 1 1];
-            if strcmp(type1,'angle')
-                s(3) = 0.01;
-            end
-            if strcmp(type2,'angle')
-                s(4) = 0.01;
-            end
-            c = @(d) s.*([height volume value1 value2] -...
-                [d.height d.volume d.([type1 '1']) d.([type2 '2'])]);
-        end
-        
-        function c = constraint_v_(volume,type1,value1,type2,value2)
-            s = [1 1 1];
-            if strcmp(type1,'angle')
-                s(3) = 0.01;
-            end
-            if strcmp(type2,'angle')
-                s(4) = 0.01;
-            end
-            c = @(d) s.*([volume value1 value2] -...
-                [d.volume d.([type1 '1']) d.([type2 '2'])]);
-        end
-        
 		function obj = segment_rr_(volume,radius1,radius2)                  
             % Volume of a segment is pi*h/6*(3*r1.^2+3*r2^2+h^2)
             % Solve h using https://en.wikipedia.org/wiki/Cubic_function
