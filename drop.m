@@ -105,23 +105,20 @@ classdef drop < handle
     
 	methods(Static)
         function obj = create(height,volume,type1,value1,type2,value2)
-        	d0 = drop.segment(volume,type1,value1,type2,value2);
-            constraint = @(d) [height volume value1 value2] -...
-                [d.height d.volume d.([type1 '1']) d.([type2 '2'])];
+        	d0 = drop.segment(volume,type1,value1,type2,value2);            
+            constraint = drop.constraint_hv_(height,volume,type1,value1,type2,value2);
             obj = d0.optimize_(constraint);
         end
     
         function obj = maxheight(volume,type1,value1,type2,value2)
         	d0 = drop.segment(volume,type1,value1,type2,value2);
-            constraint = @(d) [volume value1 value2] -...
-                [d.volume d.([type1 '1']) d.([type2 '2'])];
+            constraint = drop.constraint_v_(volume,type1,value1,type2,value2);
             obj = d0.optimize_(constraint,@(d)-d.height);
         end
         
         function obj = maxforce(volume,type1,value1,type2,value2)
         	d0 = drop.segment(volume,type1,value1,type2,value2);
-            constraint = @(d) [volume value1 value2] -...
-                [d.volume d.([type1 '1']) d.([type2 '2'])];
+            constraint = drop.constraint_v_(volume,type1,value1,type2,value2);
             obj = d0.optimize_(constraint,@(d)-d.force);
         end
             
@@ -230,6 +227,30 @@ classdef drop < handle
     end
     
     methods (Access = private,Static)
+        function c = constraint_hv_(height,volume,type1,value1,type2,value2)
+            s = [1 1 1 1];
+            if strcmp(type1,'angle')
+                s(3) = 0.01;
+            end
+            if strcmp(type2,'angle')
+                s(4) = 0.01;
+            end
+            c = @(d) s.*([height volume value1 value2] -...
+                [d.height d.volume d.([type1 '1']) d.([type2 '2'])]);
+        end
+        
+        function c = constraint_v_(volume,type1,value1,type2,value2)
+            s = [1 1 1];
+            if strcmp(type1,'angle')
+                s(3) = 0.01;
+            end
+            if strcmp(type2,'angle')
+                s(4) = 0.01;
+            end
+            c = @(d) s.*([volume value1 value2] -...
+                [d.volume d.([type1 '1']) d.([type2 '2'])]);
+        end
+        
 		function obj = segment_rr_(volume,radius1,radius2)                  
             % Volume of a segment is pi*h/6*(3*r1.^2+3*r2^2+h^2)
             % Solve h using https://en.wikipedia.org/wiki/Cubic_function
