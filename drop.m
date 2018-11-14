@@ -18,7 +18,7 @@ classdef drop < handle
     methods
         function obj = drop(B,H,s1,s2,tol)
             if nargin < 5
-                tol = 1e-12;
+                tol = 1e-9;
             end
             if nargin == 1
                 if length(B) >= 5
@@ -73,11 +73,11 @@ classdef drop < handle
         end
         
         function a1 = angle1(obj)
-            a1 = atan2d(obj.dr_(obj.s1),obj.dz_(obj.s1))+90;
+            a1 = obj.angle_(obj.s1);
         end
         
         function a2 = angle2(obj)
-            a2 = -atan2d(obj.dr_(obj.s2),obj.dz_(obj.s2))+90;  
+            a2 = 180-obj.angle_(obj.s2);  
         end
         
         function V = volume(obj)
@@ -192,13 +192,17 @@ classdef drop < handle
         end
          
         function dr = dr_(obj,s)
-			dr = -(obj.B * sin(2*obj.H*s))./sqrt(obj.B^2 + 2*obj.B*cos(2*obj.H*s) + 1);
+			dr = -(obj.B * sin(2*obj.H*s))./sqrt(4*obj.B*cos(obj.H*s)^2+(obj.B-1)^2);
         end   
         
         function dz = dz_(obj,s)
             dz = (1+obj.B*2*cos(obj.H*s).^2-obj.B) ./ sqrt((obj.B-1)^2 + 4*obj.B*cos(obj.H*s).^2);
-        end              
+        end         
         
+        function a = angle_(obj,s)
+            a = atan2d(obj.B*cos(2*obj.H*s)+1,obj.B * sin(2*obj.H*s));
+        end
+                   
         function drdz = drdz_(obj,s)
            drdz = -obj.B*sin(2*obj.H*s) / (obj.B*cos(2*obj.H*s)+1);
         end
@@ -220,7 +224,8 @@ classdef drop < handle
 
         function calcvolume_(obj)
             if isempty(obj.volume_cache)
-                area = @(s) pi*obj.r_(s).^2.*obj.dz_(s);
+                area = @(s) pi*sqrt(4*obj.B*cos(obj.H*s).^2+(obj.B-1)^2) .*...
+                    (2*obj.B*cos(obj.H*s).^2-obj.B+1)/(4*obj.H^2);
                 obj.volume_cache = integral(area,obj.s1,obj.s2,'AbsTol',obj.tol);
             end
         end       
@@ -263,9 +268,9 @@ classdef drop < handle
             C = nthroot((delta1+sqrt(delta1^2-4*delta0^3))/2,3);
             h = -1/(3*a)*(C+delta0/C);
             l1 = (radius2^2-radius1^2+h^2)/(2*h);
-            l2 = h - l1;            
+            l2 = h-l1;            
             R = sqrt(radius1^2+l1^2);                        
-            obj = drop.segment_Rll_(R,l1,l2);
+            obj = drop.segment_Rll_(R,l1/sqrt(radius1^2+l1^2),l2/sqrt(radius2^2+l2^2));
         end
         
         function obj = segment_ar_(volume,angle1,radius2)
@@ -277,22 +282,22 @@ classdef drop < handle
             l2 = fzero(@(l2) V(l2+l1(l2),sqrt(l2^2+radius2^2)*sind(angle1))-volume,1);       
             l1 = l1(l2);
             R = sqrt(radius2^2+l2^2);  
-            obj = drop.segment_Rll_(R,l1,l2);
+            obj = drop.segment_Rll_(R,l1/R,l2/R);
         end
         
         function obj = segment_aa_(volume,angle1,angle2)
-            if angle1+angle2 < 180
-                error('The sum of contact angles should be larger than 180 (was: %g)',angle1+angle2);
+            if angle1+angle2 <= 180
+                error('segment:SumOfContactAnglesLessThan180','The sum of contact angles should be larger than 180 (was: %g)',angle1+angle2);
             end
-            V = @(l1,l2) pi*(l1+l2)/6.*(3*(l1*tand(angle1)).^2+3*(l2*tand(angle2)).^2+(l1+l2).^2);
-            l2 = fzero(@(l2) V(l2*cosd(angle1)/cosd(angle2),l2)-volume,1);
-            l1 = l2*cosd(angle1)/cosd(angle2);
-            R = -l2/cosd(angle2);  
-            obj = drop.segment_Rll_(R,l1,l2); 
+            R = nthroot(3*volume/pi/(4-(2-cosd(angle1))*(1+cosd(angle1))^2-...
+                (2-cosd(angle2))*(1+cosd(angle2))^2),3);
+            l1perR = -cosd(angle1);
+            l2perR = -cosd(angle2); 
+            obj = drop.segment_Rll_(R,l1perR,l2perR); 
         end
 	
-        function obj = segment_Rll_(R,l1,l2)
-            obj = drop([1 1/R -asin(l1/R)*R asin(l2/R)*R]);
+        function obj = segment_Rll_(R,l1perR,l2perR)
+            obj = drop([1 1/R -asin(min(l1perR,1))*R asin(min(l2perR,1))*R]);
         end 
     end
 end
