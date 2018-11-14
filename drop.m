@@ -110,7 +110,14 @@ classdef drop < handle
                 [d.height d.volume d.([type1 '1']) d.([type2 '2'])];
             obj = d0.optimize_(constraint);
         end
-     
+    
+        function obj = maxheight(volume,type1,value1,type2,value2)
+        	d0 = drop.segment(volume,type1,value1,type2,value2);
+            constraint = @(d) [volume value1 value2] -...
+                [d.volume d.([type1 '1']) d.([type2 '2'])];
+            obj = d0.optimize_(constraint,@(d)-d.height);
+        end
+        
         function obj = maxforce(volume,type1,value1,type2,value2)
         	d0 = drop.segment(volume,type1,value1,type2,value2);
             constraint = @(d) [volume value1 value2] -...
