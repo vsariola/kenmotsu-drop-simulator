@@ -161,11 +161,12 @@ classdef drop < handle
             end
             
             foptions = optimset('TolFun',obj.tol,'TolX',obj.tol,'Display','off','MaxIter',1000);   
-            lb = [-Inf,0,-Inf,-Inf];    
+            lb = [-Inf,0,-pi,-pi];    
+            ub = [Inf,Inf,pi,pi];
 			
 			d_cache = [];
 			d_cache_arg = [];
-            [params_opt,~,exitflag] = fmincon(@myfun,obj.params,[],[],[],[],lb,[],@mycon,foptions);
+            [params_opt,~,exitflag] = fmincon(@myfun,obj.params,[],[],[],[],lb,ub,@mycon,foptions);
             
             obj_optimized = drop(params_opt);
            
@@ -197,23 +198,23 @@ classdef drop < handle
         end
         
         function r = r_(obj,s)
-            r = sqrt(1 + obj.B^2 + 2*obj.B*cos(2*obj.H*s)) / (2*obj.H);    
+            r = sqrt(1 + obj.B^2 + 2*obj.B*cos(2*s)) / (2*obj.H);    
         end
          
         function dr = dr_(obj,s)
-			dr = -(obj.B * sin(2*obj.H*s))./sqrt(4*obj.B*cos(obj.H*s)^2+(obj.B-1)^2);
+			dr = -(obj.B * sin(2*s))./sqrt(4*obj.B*cos(s)^2+(obj.B-1)^2) / obj.H;
         end   
         
         function dz = dz_(obj,s)
-            dz = (1+obj.B*2*cos(obj.H*s).^2-obj.B) ./ sqrt((obj.B-1)^2 + 4*obj.B*cos(obj.H*s).^2);
+            dz = (1+obj.B*2*cos(s).^2-obj.B) ./ sqrt((obj.B-1)^2 + 4*obj.B*cos(s).^2) / obj.H;
         end         
         
         function a = angle_(obj,s)
-            a = atan2d(obj.B*cos(2*obj.H*s)+1,obj.B * sin(2*obj.H*s));
+            a = atan2d(obj.B*cos(2*s)+1,obj.B * sin(2*s));
         end
                    
         function drdz = drdz_(obj,s)
-           drdz = -obj.B*sin(2*obj.H*s) / (obj.B*cos(2*obj.H*s)+1);
+           drdz = -obj.B*sin(2*s) / (obj.B*cos(2*s)+1);
         end
         
         function calczs_(obj)  
@@ -233,8 +234,8 @@ classdef drop < handle
 
         function calcvolume_(obj)
             if isempty(obj.volume_cache)
-                area = @(s) pi*sqrt(4*obj.B*cos(obj.H*s).^2+(obj.B-1)^2) .*...
-                    (2*obj.B*cos(obj.H*s).^2-obj.B+1)/(4*obj.H^2);
+                area = @(s) pi*sqrt(4*obj.B*cos(s).^2+(obj.B-1)^2) .*...
+                    (2*obj.B*cos(s).^2-obj.B+1)/(4*obj.H^3);
                 obj.volume_cache = integral(area,obj.s1,obj.s2,'AbsTol',obj.tol);
             end
         end     
@@ -271,7 +272,7 @@ classdef drop < handle
             l1 = (radius2^2-radius1^2+h^2)/(2*h);
             l2 = h-l1;            
             R = sqrt(radius1^2+l1^2);                        
-            obj = drop.segment_Rll_(R,l1/sqrt(radius1^2+l1^2),l2/sqrt(radius2^2+l2^2));
+			obj = drop([1 1/R -atan2(l1,radius1) atan2(l2,radius2)]);
         end
         
         function obj = segment_ar_(volume,angle1,radius2)
@@ -280,10 +281,9 @@ classdef drop < handle
 
             % x is distance from the sphere center to the plane 2
             l1 = @(l2) -sqrt(l2^2+radius2^2)*cosd(angle1);                        
-            l2 = fzero(@(l2) V(l2+l1(l2),sqrt(l2^2+radius2^2)*sind(angle1))-volume,1);       
-            l1 = l1(l2);
+            l2 = fzero(@(l2) V(l2+l1(l2),sqrt(l2^2+radius2^2)*sind(angle1))-volume,1);
             R = sqrt(radius2^2+l2^2);  
-            obj = drop.segment_Rll_(R,l1/R,l2/R);
+			obj = drop([1 1/R (90-angle1)/180*pi atan2(l2,radius2)]);
         end
         
         function obj = segment_aa_(volume,angle1,angle2)
@@ -292,13 +292,7 @@ classdef drop < handle
             end
             R = nthroot(3*volume/pi/(4-(2-cosd(angle1))*(1+cosd(angle1))^2-...
                 (2-cosd(angle2))*(1+cosd(angle2))^2),3);
-            l1perR = -cosd(angle1);
-            l2perR = -cosd(angle2); 
-            obj = drop.segment_Rll_(R,l1perR,l2perR); 
+            obj = drop([1 1/R (90-angle1)/180*pi (angle2-90)/180*pi]); 
         end
-	
-        function obj = segment_Rll_(R,l1perR,l2perR)
-            obj = drop([1 1/R -asin(min(l1perR,1))*R asin(min(l2perR,1))*R]);
-        end 
     end
 end
