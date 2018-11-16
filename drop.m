@@ -2,7 +2,7 @@ classdef drop < handle
     
     properties (SetAccess = immutable)
         B
-        H
+        R
         s1    
         s2
         tol
@@ -16,7 +16,7 @@ classdef drop < handle
     end
     
     methods
-        function obj = drop(B,H,s1,s2,tol)
+        function obj = drop(B,R,s1,s2,tol)
             if nargin < 5
                 tol = 1e-9;
             end
@@ -27,21 +27,21 @@ classdef drop < handle
                 if length(B) >= 4
                     s2 = B(4);
                     s1 = B(3);
-                    H = B(2);
+                    R = B(2);
                     B = B(1);
                 else                
                     error('At least four params expected');
                 end
             end            
             obj.B = B;
-            obj.H = H;
+            obj.R = R;
             obj.s1 = s1;
             obj.s2 = s2;
             obj.tol = tol;
         end
         
         function params = params(obj)
-            params = [obj.B obj.H obj.s1 obj.s2];
+            params = [obj.B obj.R obj.s1 obj.s2];
         end
         
         function h = height(obj)
@@ -86,7 +86,7 @@ classdef drop < handle
         end
         
         function F = force(obj)
-            F = -pi * (obj.B^2-1) / (2*obj.H); 
+            F = -pi * (obj.B^2-1) * obj.R / 2; 
         end
         
         function show(obj)       
@@ -99,7 +99,7 @@ classdef drop < handle
         end
         
         function obj_flipped = flip(obj)
-            obj_flipped = drop(obj.B,obj.H,-obj.s2,-obj.s1);
+            obj_flipped = drop(obj.B,obj.R,-obj.s2,-obj.s1);
         end
 		
 		function d = solve(d0,varargin)
@@ -198,15 +198,15 @@ classdef drop < handle
         end
         
         function r = r_(obj,s)
-            r = sqrt(1 + obj.B^2 + 2*obj.B*cos(2*s)) / (2*obj.H);    
+            r = sqrt(1 + obj.B^2 + 2*obj.B*cos(2*s)) * obj.R / 2;    
         end
          
         function dr = dr_(obj,s)
-			dr = -(obj.B * sin(2*s))./sqrt(4*obj.B*cos(s)^2+(obj.B-1)^2) / obj.H;
+			dr = -(obj.B * sin(2*s))./sqrt(4*obj.B*cos(s)^2+(obj.B-1)^2) * obj.R;
         end   
         
         function dz = dz_(obj,s)
-            dz = (1+obj.B*2*cos(s).^2-obj.B) ./ sqrt((obj.B-1)^2 + 4*obj.B*cos(s).^2) / obj.H;
+            dz = (1+obj.B*2*cos(s).^2-obj.B) ./ sqrt((obj.B-1)^2 + 4*obj.B*cos(s).^2) * obj.R;
         end         
         
         function a = angle_(obj,s)
@@ -235,7 +235,7 @@ classdef drop < handle
         function calcvolume_(obj)
             if isempty(obj.volume_cache)
                 area = @(s) pi*sqrt(4*obj.B*cos(s).^2+(obj.B-1)^2) .*...
-                    (2*obj.B*cos(s).^2-obj.B+1)/(4*obj.H^3);
+                    (2*obj.B*cos(s).^2-obj.B+1)/4*obj.R^3;
                 obj.volume_cache = integral(area,obj.s1,obj.s2,'AbsTol',obj.tol);
             end
         end     
@@ -272,7 +272,7 @@ classdef drop < handle
             l1 = (radius2^2-radius1^2+h^2)/(2*h);
             l2 = h-l1;            
             R = sqrt(radius1^2+l1^2);                        
-			obj = drop([1 1/R -atan2(l1,radius1) atan2(l2,radius2)]);
+			obj = drop([1 R -atan2(l1,radius1) atan2(l2,radius2)]);
         end
         
         function obj = segment_ar_(volume,angle1,radius2)
@@ -283,7 +283,7 @@ classdef drop < handle
             l1 = @(l2) -sqrt(l2^2+radius2^2)*cosd(angle1);                        
             l2 = fzero(@(l2) V(l2+l1(l2),sqrt(l2^2+radius2^2)*sind(angle1))-volume,1);
             R = sqrt(radius2^2+l2^2);  
-			obj = drop([1 1/R (90-angle1)/180*pi atan2(l2,radius2)]);
+			obj = drop([1 R (90-angle1)/180*pi atan2(l2,radius2)]);
         end
         
         function obj = segment_aa_(volume,angle1,angle2)
@@ -292,7 +292,7 @@ classdef drop < handle
             end
             R = nthroot(3*volume/pi/(4-(2-cosd(angle1))*(1+cosd(angle1))^2-...
                 (2-cosd(angle2))*(1+cosd(angle2))^2),3);
-            obj = drop([1 1/R (90-angle1)/180*pi (angle2-90)/180*pi]); 
+            obj = drop([1 R (90-angle1)/180*pi (angle2-90)/180*pi]); 
         end
     end
 end
