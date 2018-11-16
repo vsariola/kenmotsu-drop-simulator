@@ -267,7 +267,7 @@ classdef drop < handle
             d = -volume;
             delta0 = -3*a*c;
             delta1 = 27*a^2*d;
-            C = nthroot((delta1+sqrt(delta1^2-4*delta0^3))/2,3);
+            C = nthroot((delta1+sign(delta1)*sqrt(delta1^2-4*delta0^3))/2,3);
             h = -1/(3*a)*(C+delta0/C);
             l1 = (radius2^2-radius1^2+h^2)/(2*h);
             l2 = h-l1;            
