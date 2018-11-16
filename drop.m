@@ -161,12 +161,11 @@ classdef drop < handle
             end
             
             foptions = optimset('TolFun',obj.tol,'TolX',obj.tol,'Display','off','MaxIter',1000);   
-            lb = [-Inf,0,-pi,-pi];    
-            ub = [Inf,Inf,pi,pi];
+            lb = [-Inf,0,-Inf,-Inf];                
 			
 			d_cache = [];
 			d_cache_arg = [];
-            [params_opt,~,exitflag] = fmincon(@myfun,obj.params,[],[],[],[],lb,ub,@mycon,foptions);
+            [params_opt,~,exitflag] = fmincon(@myfun,obj.params,[],[],[],[],lb,[],@mycon,foptions);
             
             obj_optimized = drop(params_opt);
            
@@ -192,7 +191,8 @@ classdef drop < handle
             
             function [c,ceq] = mycon(arg)     
 				check_cache(arg);
-                c = [];
+                b = (1+(arg(1)<1)) * pi/2;
+                c = [arg(3)-b -arg(3)-b arg(4)-b -arg(4)-b];
                 ceq = constraints(d_cache);
             end
         end
