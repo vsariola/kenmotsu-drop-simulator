@@ -25,7 +25,7 @@ classdef TestSegments < matlab.unittest.TestCase
              tolerance = 1e-4;
              fun = @()drop.segment(volume,'angle',angle1,'angle',angle2);                
              if (angle1+angle2<=180)                
-                 testCase.verifyError(fun,'segment:SumOfContactAnglesLessThan180')
+                 testCase.verifyError(fun,'drop:SumOfContactAnglesLessThan180')
              else
                  d = fun();
                  testCase.assertLessThan(abs(d.volume - volume)/volume,tolerance);

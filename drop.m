@@ -100,35 +100,45 @@ classdef drop < handle
         
         function obj_flipped = flip(obj)
             obj_flipped = drop(obj.B,obj.R,-obj.s2,-obj.s1);
-        end
+        end				
 		
-		function d = solve(d0,varargin)
-			d = d0.optimize_(@(x)x.constraint_(varargin{:}));
-        end
-		
-		function d = minimize(d0,fieldname,varargin)
-			d = d0.optimize_(@(x)x.constraint_(varargin{:}),@(x)x.(fieldname));
+        function d = solve(d0,f,target,varargin)
+            if ischar(f)
+                f = @(x)x.(f);
+            end            
+            fun = @(x)(f(x) - target).^2/max(1e-6,abs(target));            
+			d = d0.optimize_(fun,varargin{:});
+		end
+        
+		function d = minimize(d0,f,varargin)
+            if ischar(f)
+                f = @(x)x.(f);
+            end                  
+			d = d0.optimize_(f,varargin{:});
 		end
 		
-		function d = maximize(d0,fieldname,varargin)
-			d = d0.optimize_(@(x)x.constraint_(varargin{:}),@(x)-x.(fieldname));
+		function d = maximize(d0,f,varargin)
+            if ischar(f)
+                f = @(x)-x.(f);
+            end
+			d = d0.optimize_(f,varargin{:});
 		end
     end
     
 	methods(Static)	
-        function d = segment_solve(volume,type1,value1,type2,value2,varargin)
+        function d = segment_solve(volume,type1,value1,type2,value2,f,value)
         	d0 = drop.segment(volume,type1,value1,type2,value2);            
-            d = d0.solve('volume',volume,[type1 '1'],value1,[type2 '2'],value2,varargin{:});
+            d = d0.solve(f,value,'volume',[type1 '1'],[type2 '2']);
         end
     
-        function d = segment_maximize(volume,type1,value1,type2,value2,fieldname,varargin)
+        function d = segment_maximize(volume,type1,value1,type2,value2,f)
         	d0 = drop.segment(volume,type1,value1,type2,value2);            
-            d = d0.maximize(fieldname,'volume',volume,[type1 '1'],value1,[type2 '2'],value2,varargin{:});
+            d = d0.maximize(f,'volume',[type1 '1'],[type2 '2']);
         end
         
-        function d = segment_minimize(volume,type1,value1,type2,value2,fieldname,varargin)
+        function d = segment_minimize(volume,type1,value1,type2,value2,f)
         	d0 = drop.segment(volume,type1,value1,type2,value2);            
-            d = d0.minimize(fieldname,'volume',volume,[type1 '1'],value1,[type2 '2'],value2,varargin{:});
+            d = d0.minimize(f,'volume',[type1 '1'],[type2 '2']);
         end
             
         function obj = segment(volume,type1,value1,type2,value2)
@@ -155,10 +165,8 @@ classdef drop < handle
     end
     
     methods (Access = private)
-        function obj_optimized = optimize_(obj,constraints,fun)
-            if (nargin < 3)
-                fun = @(x)0;
-            end
+        function obj_optimized = optimize_(obj,fun,varargin)        
+            constraints = @(x)obj.constraint_(x,varargin{:});          
             
             foptions = optimset('TolFun',obj.tol,'TolX',obj.tol,'Display','off','MaxIter',1000);   
             lb = [-Inf,0,-Inf,-Inf];                
@@ -170,9 +178,11 @@ classdef drop < handle
             obj_optimized = drop(params_opt);
            
             if (exitflag < 1)                    
-                warning('Did not converge, exitflag = %d',exitflag);
-                disp(constraints);
-                constraints(obj_optimized)
+                warning('drop:didnotconverge','Did not converge, exitflag = %d',exitflag);
+                disp(varargin);                
+                for i = 1:length(varargin)
+                    fprintf('%s is %g, should be %g.\n',varargin{i},obj_optimized.(varargin{i}),obj.(varargin{i}));
+                end
             end 
 			
 			% Small optimization: share the computed drop with the constraint function
@@ -186,15 +196,15 @@ classdef drop < handle
 			
 			function value = myfun(arg)
 				check_cache(arg);
-				value = fun(d_cache);
+                value = fun(d_cache) ;                
 			end
             
             function [c,ceq] = mycon(arg)     
-				check_cache(arg);
-                b = (1+(arg(1)<1)) * pi/2;
-                c = [arg(3)-b -arg(3)-b arg(4)-b -arg(4)-b];
+				check_cache(arg);                
+                c = [];
                 ceq = constraints(d_cache);
-            end
+            end                    
+            
         end
         
         function r = r_(obj,s)
@@ -240,19 +250,19 @@ classdef drop < handle
             end
         end     
 
-        function ceq = constraint_(drop,varargin)
-			n = length(varargin)/2;
+        function ceq = constraint_(drop,drop2,varargin)
+			n = length(varargin);
 			ceq = zeros(1,n);
 			for i = 1:n
-				target = varargin{i*2};
-				fieldname = varargin{i*2-1};				
+                fieldname = varargin{i};				
+				target = drop.(fieldname);
+                value = drop2.(fieldname);				
 				if strcmp(fieldname,'angle1') || strcmp(fieldname,'angle2')
-					ceq(i) = 0.1 * (target - drop.(fieldname));
+					[target,value] = deal(0.1 * target - value);
                 elseif strcmp(fieldname,'volume')
-                    ceq(i) = nthroot(target,3) - nthroot(drop.(fieldname),3); 
-                else
-                    ceq(i) = target - drop.(fieldname);
-				end
+                    [target,value] = deal(nthroot(target,3),nthroot(value,3));
+                end
+                ceq(i) = target - value;				
 			end
         end		
     end
@@ -288,7 +298,7 @@ classdef drop < handle
         
         function obj = segment_aa_(volume,angle1,angle2)
             if angle1+angle2 <= 180
-                error('segment:SumOfContactAnglesLessThan180','The sum of contact angles should be larger than 180 (was: %g)',angle1+angle2);
+                error('drop:SumOfContactAnglesLessThan180','The sum of contact angles should be larger than 180 (was: %g)',angle1+angle2);
             end
             R = nthroot(3*volume/pi/(4-(2-cosd(angle1))*(1+cosd(angle1))^2-...
                 (2-cosd(angle2))*(1+cosd(angle2))^2),3);
