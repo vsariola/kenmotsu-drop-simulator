@@ -190,9 +190,8 @@ classdef drop < handle
 			end
             
             function [c,ceq] = mycon(arg)     
-				check_cache(arg);
-                b = (1+(arg(1)<1)) * pi/2;
-                c = [arg(3)-b -arg(3)-b arg(4)-b -arg(4)-b];
+				check_cache(arg);                
+                c = [];
                 ceq = constraints(d_cache);
             end
         end
