@@ -218,7 +218,12 @@ classdef drop < handle
         
         function calczs_(obj)  
             if isempty(obj.z_cache) || isempty(obj.s_cache)
+                lastwarn('');
                 [z,s] = cumquad(@obj.dz_,obj.s1,obj.s2,obj.tol);            
+                warnMsg = lastwarn;
+                if ~isempty(warnMsg)
+                    warning('Cumquad gave warnings for parameters B = %f, R = %f, s1 = %f, s2 = %f',obj.params);
+                end                   
                 obj.z_cache = [0 z];
                 obj.s_cache = [obj.s1 s];
             end            
